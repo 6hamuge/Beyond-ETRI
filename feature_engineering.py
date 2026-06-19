@@ -310,6 +310,7 @@ def build_domain_features(raw_dict):
     raw_dict 내 각 센서에 개별 추출 함수를 적용 후 outer merge
     """
     extractors = {
+        'hr'         : lambda d: _feat_hr(d),
         'pedo'       : lambda d: _feat_pedo(d),
         'activity'   : lambda d: _feat_activity(d),
         'screen'     : lambda d: _feat_screen(d),
@@ -686,6 +687,9 @@ def extract_gps_special_features(df, subject_col='subject_id'):
     """
     m_gps: List[{altitude, latitude, longitude, speed}]
     → 이동성 / 야간 이동 / 마지막 이동 시각 / 방문 장소 수 등 피처
+
+    Issue #3: gps__night_moving_ratio (야간 00~05시 이동 비율) 이미 구현됨
+    — 별도 추가 없이 run_feature_pipeline에서 자동 포함됨
     """
     df = ensure_datetime(df)
     rows = []
@@ -778,6 +782,10 @@ def extract_ambience_special_features(df, subject_col='subject_id'):
         total_events   = 0
         evening_events = 0
         evening_speech = evening_music = evening_vehicle = 0.0
+        # ── 야간 구간 (00~07시) ──────────────────────────────
+        night_events  = 0
+        night_silence = 0.0
+        night_speech  = 0.0
 
         for _, row in g.iterrows():
             arr  = to_list(row.get('m_ambience'))
@@ -806,16 +814,25 @@ def extract_ambience_special_features(df, subject_col='subject_id'):
                     evening_music   += scores.get('Music',  0.0)
                     evening_vehicle += (scores.get('Vehicle', 0.0) +
                                         scores.get('Motor vehicle (road)', 0.0))
+                # 야간 구간 집계
+                if 0 <= hour <= 6:
+                    night_events  += 1
+                    night_silence += scores.get('Silence', 0.0)
+                    night_speech  += scores.get('Speech',  0.0)
 
         feat = {
-            'subject_id':                      subj,
-            'date':                            date,
-            'ambience__record_count':          len(g),
-            'ambience__valid_event_count':     total_events,
-            'ambience__evening_event_count':   evening_events,
-            'ambience__evening_speech_mean':   evening_speech / evening_events if evening_events else 0,
-            'ambience__evening_music_mean':    evening_music  / evening_events if evening_events else 0,
-            'ambience__evening_vehicle_mean':  evening_vehicle / evening_events if evening_events else 0,
+            'subject_id':                       subj,
+            'date':                             date,
+            'ambience__record_count':           len(g),
+            'ambience__valid_event_count':      total_events,
+            'ambience__evening_event_count':    evening_events,
+            'ambience__evening_speech_mean':    evening_speech / evening_events if evening_events else 0,
+            'ambience__evening_music_mean':     evening_music  / evening_events if evening_events else 0,
+            'ambience__evening_vehicle_mean':   evening_vehicle / evening_events if evening_events else 0,
+            # ── Issue #3: 야간 구간 피처 ──────────────────────
+            'ambience__night_event_count':      night_events,
+            'ambience__night_silence_ratio':    night_silence / night_events if night_events else 0,
+            'ambience__night_speech_ratio':     night_speech  / night_events if night_events else 0,
         }
         for label in TARGET_LABELS:
             clean = (label.lower()
@@ -847,6 +864,8 @@ def extract_ble_special_features(df, subject_col='subject_id'):
         device_classes     = set()
         evening_counts     = []
         night_counts       = []
+        # ── 야간 구간 (00~06시) 고유 기기 추적 ───────────────
+        night_addresses    = set()
 
         for _, row in g.iterrows():
             devices = to_list(row['m_ble'])
@@ -858,6 +877,8 @@ def extract_ble_special_features(df, subject_col='subject_id'):
                     addr  = dev.get('address')
                     if addr:
                         unique_addresses.add(addr)
+                        if 0 <= hour <= 6:
+                            night_addresses.add(addr)
                     dc = dev.get('device_class')
                     if dc is not None:
                         device_classes.add(str(dc))
@@ -867,7 +888,7 @@ def extract_ble_special_features(df, subject_col='subject_id'):
 
             scan_device_counts.append(count)
             if 20 <= hour <= 23: evening_counts.append(count)
-            if 0  <= hour <= 5:  night_counts.append(count)
+            if 0  <= hour <= 6:  night_counts.append(count)
 
         scan_device_counts = np.array(scan_device_counts)
         rssis              = np.array(rssis)
@@ -887,6 +908,9 @@ def extract_ble_special_features(df, subject_col='subject_id'):
             'ble__strong_signal_ratio':       np.mean(rssis > -60) if len(rssis) else 0,
             'ble__evening_device_count_mean': np.mean(evening_counts) if len(evening_counts) else 0,
             'ble__night_device_count_mean':   np.mean(night_counts)   if len(night_counts) else 0,
+            # ── Issue #3: 야간 구간 피처 ──────────────────────
+            'ble__night_device_count':        len(night_addresses),
+            'ble__night_scan_count':          len(night_counts),
         }
         rows.append(feat)
 
