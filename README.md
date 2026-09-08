@@ -132,4 +132,4 @@ notebooks in `experiments/` are alternatives that did not beat it.
 | Donghee Kim (김동희) | Dept. of Artificial Intelligence Engineering, Sookmyung Women's University |
 | Yerin Tak (탁예린) | Dept. of Artificial Intelligence Engineering, Sookmyung Women's University |
 
-Team **Beyond** · Team number `<TEAM_NUMBER>`
+Team **Beyond**
