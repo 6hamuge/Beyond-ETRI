@@ -1,6 +1,6 @@
 # 모델 설명서 — PTDTransformer
 
-> 제5회 ETRI 휴먼이해 인공지능 논문경진대회 · 팀 `<팀명>` (팀번호 `<팀번호>`)
+> 제5회 ETRI 휴먼이해 인공지능 논문경진대회 · 팀 **Beyond** (팀번호 `<팀번호>`)
 >
 > PTDTransformer: A Deviation-Aware Transformer for Multimodal Lifelog-Based
 > Sleep Quality Prediction — Chaeyoung Jung(정채영), Donghee Kim(김동희),
